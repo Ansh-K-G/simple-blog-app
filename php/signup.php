@@ -1,66 +1,65 @@
 <?php
 
 if (
-	isset($_POST['fname']) &&
-	isset($_POST['uname']) &&
-	isset($_POST['pass'])
+    isset($_POST['fname']) &&
+    isset($_POST['uname']) &&
+    isset($_POST['pass'])
 ) {
 
-	include "../db_conn.php";
+    include "../db_conn.php";
 
-	$fname = $_POST['fname'];
-	$uname = $_POST['uname'];
-	$pass = $_POST['pass'];
+    // Trim inputs
+    $fname = trim($_POST['fname']);
+    $uname = trim($_POST['uname']);
+    $pass  = $_POST['pass'];
 
-	$data = "fname=" . $fname . "&uname=" . $uname;
+    $data = "fname=" . urlencode($fname) . "&uname=" . urlencode($uname);
 
-	if (empty($fname)) {
-		$em = "Full name is required";
-		header("Location: ../signup.php?error=$em&$data");
-		exit;
-	} else if (empty($uname)) {
-		$em = "User name is required";
-		header("Location: ../signup.php?error=$em&$data");
-		exit;
-	} else if (empty($pass)) {
-		$em = "Password is required";
-		header("Location: ../signup.php?error=$em&$data");
-		exit;
-	} else {
+    // Validation
+    if (empty($fname)) {
+        $em = "Full name is required";
+        header("Location: ../signup.php?error=$em&$data");
+        exit;
+    } 
+    else if (empty($uname)) {
+        $em = "User name is required";
+        header("Location: ../signup.php?error=$em&$data");
+        exit;
+    } 
+    else if (empty($pass)) {
+        $em = "Password is required";
+        header("Location: ../signup.php?error=$em&$data");
+        exit;
+    } 
+    else {
 
-		// hashing the password
-		$pass = password_hash($pass, PASSWORD_DEFAULT);
+        // Hash password ONLY after validation
+        $hashedPass = password_hash($pass, PASSWORD_DEFAULT);
 
-		//checking the database if the username is already taken
-		$sql = "SELECT * FROM users WHERE username = ?";
-		$stmt = $conn->prepare($sql);
-		$stmt->execute([$uname]);
+        $sql = "INSERT INTO users (fname, username, password) VALUES (?, ?, ?)";
+        $stmt = $conn->prepare($sql);
 
+        try {
+            $stmt->execute([$fname, $uname, $hashedPass]);
 
-		if ($stmt->rowCount() > 0) {
-			$em = "Username already taken";
-			header("Location: ../signup.php?error=$em&$data");
-			exit;
-		}
+            header("Location: ../signup.php?success=Your account has been created successfully");
+            exit;
 
+        } catch (PDOException $e) {
 
-		$sql = "INSERT INTO users(fname, username, password) 
-    	        VALUES(?,?,?)";
-		$stmt = $conn->prepare($sql);
+            // Check if error is due to duplicate username
+            if ($e->errorInfo[1] == 1062) { // MySQL duplicate entry error code
+                $em = "Username already exists";
+            } else {
+                $em = "Something went wrong. Please try again.";
+            }
 
-		//handling errors during database insertion
-		try {
-			$stmt->execute([$fname, $uname, $pass]);
-		} catch (PDOException $e) {
-			$em = "Username already exists";
-			header("Location: ../signup.php?error=$em&$data");
-			exit;
-		}
+            header("Location: ../signup.php?error=$em&$data");
+            exit;
+        }
+    }
 
-		header("Location: ../signup.php?success=Your account has been created successfully");
-		exit;
-	}
 } else {
-	header("Location: ../signup.php?error=error");
-	exit;
+    header("Location: ../signup.php?error=Invalid request");
+    exit;
 }
